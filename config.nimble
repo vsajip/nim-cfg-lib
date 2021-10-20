@@ -1,0 +1,11 @@
+# Package
+
+version       = "0.1.0"
+author        = "Vinay Sajip"
+description   = "A configuration system"
+license       = "BSD-3-Clause"
+srcDir        = "src"
+
+# Dependencies
+
+requires "nim >= 1.0.0"

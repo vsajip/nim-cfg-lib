@@ -326,7 +326,7 @@ proc getToken(self: Tokenizer) : Token =
         if (radix == 0) and ch in "jJ":
           text.add(c)
           endLocation.update(self.location)
-          result.kind = Complex
+          result = TokenValue(kind: Complex)
         else:
           if ch != '.' and not ch.isAlphaNumeric:
             self.pushBack(c)
@@ -482,7 +482,7 @@ proc getToken(self: Tokenizer) : Token =
       # echo &"PUNCT: {ch}"
       text.add(c)
       endLocation.update(self.charLocation)
-      result.value.kind = PUNCT[ch]
+      result.value = TokenValue(kind: PUNCT[ch])
       if ch == '.':
         c = self.getChar
         ch = char(c)
@@ -505,26 +505,26 @@ proc getToken(self: Tokenizer) : Token =
             text.add(c)
             endLocation.update(self.charLocation)
             if ch == '<':
-              result.value.kind = LeftShift
+              result.value = TokenValue(kind: LeftShift)
             elif ch == '>':
-              result.value.kind = AltUnequal
+              result.value = TokenValue(kind: AltUnequal)
             elif ch == '=':
-              result.value.kind = LessThanOrEqual
+              result.value = TokenValue(kind: LessThanOrEqual)
             pb = false
         elif pch == '>':
           if ch in ">=":
             text.add(c)
             endLocation.update(self.charLocation)
             if ch == '>':
-              result.value.kind = RightShift
+              result.value = TokenValue(kind: RightShift)
             else:
-              result.value.kind = GreaterThanOrEqual
+              result.value = TokenValue(kind: GreaterThanOrEqual)
             pb = false
         elif pch in "!=":
           if ch == '=':
             text.add(c)
             endLocation.update(self.charLocation)
-            result.value.kind = Unequal
+            result.value = TokenValue(kind: Unequal)
             pb = false
           else:
             pb = true
@@ -533,11 +533,11 @@ proc getToken(self: Tokenizer) : Token =
             text.add(c)
             endLocation.update(self.charLocation)
             if pch == '*':
-              result.value.kind = Power
+              result.value = TokenValue(kind: Power)
             elif pch == '/':
-              result.value.kind = SlashSlash
+              result.value = TokenValue(kind: SlashSlash)
             else:
-              result.value.kind = Equal
+              result.value = TokenValue(kind: Equal)
             pb = false
         if pb:
             self.pushBack(c)

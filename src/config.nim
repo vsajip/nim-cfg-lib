@@ -78,18 +78,24 @@ type
 
   Any = ref RootObj
 
-  TokenValue {.union.} = object
-    intValue: uint64
-    floatValue: float
-    stringValue: string
-    boolValue: bool
-    complexValue: Complex[float64]
-    otherValue: Any
+  TokenValue = object
+    case kind: TokenKind
+    of UnsignedNumber, SignedNumber: 
+      intValue: uint64
+    of FloatNumber:
+      floatValue: float
+    of StringToken:
+      stringValue: string
+    of TrueToken, FalseToken:
+      boolValue: bool
+    of Complex:
+      complexValue: Complex[float64]
+    else:
+      otherValue: Any
 
-  NumberReturnValue = tuple[kind: TokenKind, value: TokenValue]
+  NumberReturnValue = TokenValue
 
   Token* = ref object of RootObj
-    kind: TokenKind
     text: string
     value: TokenValue
     startpos: Location
@@ -129,7 +135,7 @@ proc `$` (loc: Location) : string = &"({loc.line}, {loc.column})"
 # ------------------------------------------------------------------------
 
 proc newToken(kind: TokenKind, text: string) : Token =
-  Token(kind: kind, text: text)
+  Token(value: TokenValue(kind: kind), text: text)
 
 # ------------------------------------------------------------------------
 #  UTF8 Decoder
@@ -280,7 +286,6 @@ proc getToken(self: Tokenizer) : Token =
     var e: ref TokenizerError
     var fv : float
 
-    result.kind = UnsignedNumber
     while true:
       c = self.getChar
       ch = char(int(c) and 0xFF)
@@ -333,18 +338,16 @@ proc getToken(self: Tokenizer) : Token =
         break
     try:
       if radix != 0:
-        result.value.intValue = parseUInt64($text, radix)
+        result = TokenValue(kind: UnsignedNumber, intValue: parseUInt64($text, radix))
       elif char(text[^1]) in "jJ":
         discard parseFloat($text, fv)
-        result.kind = Complex
-        result.value.complexValue = asComplex(fv)
+        result = TokenValue(kind: Complex, complexValue: asComplex(fv))
       elif inExponent or dotSeen:
         discard parseFloat($text, fv)
-        result.kind = FloatNumber
-        result.value.floatValue = fv
+        result = TokenValue(kind: FloatNumber, floatValue: fv)
       else:
         radix = if char(text[0]) == '0': 8 else: 10
-        result.value.intValue = parseUInt64($text, radix)
+        result = TokenValue(kind: UnsignedNumber, intValue: parseUInt64($text, radix))
     except ValueError:
       new(e)
       e.msg = &"badly-formed number: {text}"
@@ -364,16 +367,16 @@ proc getToken(self: Tokenizer) : Token =
     endLocation.update(self.charLocation)
 
     if ch == '\0':
-      result.kind = EOF
+      result.value = TokenValue(kind: EOF)
       break
     elif ch == '#':
       result.text = &"#{self.stream.stream.readLine}"
       self.location.nextLine
       endLocation.update(self.charLocation)
-      result.kind = Newline
+      result.value = TokenValue(kind: Newline)
       break
     elif ch == '\n':
-      result.kind = Newline
+      result.value = TokenValue(kind: Newline)
       result.text.add(ch)
       endLocation.update(self.location)
       break
@@ -382,7 +385,7 @@ proc getToken(self: Tokenizer) : Token =
       ch = char(c)
       if ch != '\n':
         self.pushBack(c)
-      result.kind = Newline
+      result.value = TokenValue(kind: Newline)
       endLocation.update(self.location)
       break
     elif c.isWhiteSpace:
@@ -391,7 +394,7 @@ proc getToken(self: Tokenizer) : Token =
       text.add(c)
       endLocation.update(self.charLocation)
       var quote = ch
-      result.kind = StringToken
+      result.value = TokenValue(kind: StringToken)
       var escaped = false
       var multiline = false
       var c1 = self.getChar
@@ -434,7 +437,7 @@ proc getToken(self: Tokenizer) : Token =
     elif c.isAlpha or (ch == '_'):
       text.add(c)
       endLocation.update(self.charLocation)
-      result.kind = Word
+      result.value = TokenValue(kind: Word)
       c = self.getChar
       ch = char(c)
       while (ch != '\0') and (c.isAlpha or ch.isDigit or ch == '_'):
@@ -446,11 +449,11 @@ proc getToken(self: Tokenizer) : Token =
       var s = $text
       result.text = s
       if s in KEYWORDS:
-        result.kind = KEYWORDS[s]
+        result.value = TokenValue(kind: KEYWORDS[s])
         # result.value = KEYWORD_VALUES[s]
-        if result.kind == TrueToken:
+        if result.value.kind == TrueToken:
           result.value.boolValue = true
-        elif result.kind == FalseToken:
+        elif result.value.kind == FalseToken:
           result.value.boolValue = false
         else:
           result.value.otherValue = nil
@@ -459,8 +462,8 @@ proc getToken(self: Tokenizer) : Token =
       text.add(c)
       endLocation.update(self.charLocation)
       nv = getNumber()
-      result.kind = nv.kind
-      result.value = nv.value
+      result.value = nv
+      #result.value = nv.value
       break
     elif ch == '=':
       var loc = self.charLocation.copy
@@ -479,7 +482,7 @@ proc getToken(self: Tokenizer) : Token =
       # echo &"PUNCT: {ch}"
       text.add(c)
       endLocation.update(self.charLocation)
-      result.kind = PUNCT[ch]
+      result.value.kind = PUNCT[ch]
       if ch == '.':
         c = self.getChar
         ch = char(c)
@@ -490,8 +493,7 @@ proc getToken(self: Tokenizer) : Token =
               text.add(c)
               endLocation.update(self.charLocation)
               nv = getNumber()
-              result.kind = nv.kind
-              result.value = nv.value
+              result.value = nv
               break
       elif ch in "<>!*/":
         var pch = ch
@@ -503,26 +505,26 @@ proc getToken(self: Tokenizer) : Token =
             text.add(c)
             endLocation.update(self.charLocation)
             if ch == '<':
-              result.kind = LeftShift
+              result.value.kind = LeftShift
             elif ch == '>':
-              result.kind = AltUnequal
+              result.value.kind = AltUnequal
             elif ch == '=':
-              result.kind = LessThanOrEqual
+              result.value.kind = LessThanOrEqual
             pb = false
         elif pch == '>':
           if ch in ">=":
             text.add(c)
             endLocation.update(self.charLocation)
             if ch == '>':
-              result.kind = RightShift
+              result.value.kind = RightShift
             else:
-              result.kind = GreaterThanOrEqual
+              result.value.kind = GreaterThanOrEqual
             pb = false
         elif pch in "!=":
           if ch == '=':
             text.add(c)
             endLocation.update(self.charLocation)
-            result.kind = Unequal
+            result.value.kind = Unequal
             pb = false
           else:
             pb = true
@@ -531,11 +533,11 @@ proc getToken(self: Tokenizer) : Token =
             text.add(c)
             endLocation.update(self.charLocation)
             if pch == '*':
-              result.kind = Power
+              result.value.kind = Power
             elif pch == '/':
-              result.kind = SlashSlash
+              result.value.kind = SlashSlash
             else:
-              result.kind = Equal
+              result.value.kind = Equal
             pb = false
         if pb:
             self.pushBack(c)

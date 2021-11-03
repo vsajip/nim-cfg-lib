@@ -16,6 +16,7 @@ import strutils
 import tables
 import times
 import timezones
+import typetraits
 import unicode
 
 type
@@ -434,12 +435,12 @@ proc parseEscapes(s: string): string =
       parts.add(s[pos..n - 1])
     result = parts.join
 
-func escape(s: string): string =
-  for c in items(s):
-    case c
-    of '\0'..'\31', '\34', '\39', '\92', '\127'..'\255':
-      result.addEscapedChar(c)
-    else: add(result, c)
+# func escape(s: string): string =
+#   for c in items(s):
+#     case c
+#     of '\0'..'\31', '\34', '\39', '\92', '\127'..'\255':
+#       result.addEscapedChar(c)
+#     else: add(result, c)
 
 var OCTAL_PATTERN = re"^[0-7]*$"
 
@@ -1076,10 +1077,10 @@ proc newBinaryNode(op: TokenKind, lhs, rhs: ASTNode): BinaryNode =
   result.lhs = lhs
   result.rhs = rhs
 
-proc `==`(n1, n2: BinaryNode): bool =
-  if n1.kind != n2.kind: return false
-  if n1.lhs != n2.lhs: return false
-  return n1.rhs == n2.rhs
+# proc `==`(n1, n2: BinaryNode): bool =
+#   if n1.kind != n2.kind: return false
+#   if n1.lhs != n2.lhs: return false
+#   return n1.rhs == n2.rhs
 
 proc primary*(self: Parser): ASTNode =
   result = self.atom()
@@ -1194,9 +1195,9 @@ proc power*(self: Parser): ASTNode =
     # the best thing to do
     result = newBinaryNode(Power, result, self.unaryExpr())
 
-proc `==`(n1, n2: UnaryNode): bool =
-  if n1.kind != n2.kind: return false
-  return n1.operand == n2.operand
+# proc `==`(n1, n2: UnaryNode): bool =
+#   if n1.kind != n2.kind: return false
+#   return n1.operand == n2.operand
 
 proc unaryExpr*(self: Parser): ASTNode =
   var kind = self.next.kind
@@ -1340,17 +1341,17 @@ type
     InternalListValue,
     InternalMappingValue
 
-  ConfigValue = object
+  ConfigValue* = object
     case kind: ValueKind
-    of IntegerValue: intValue: int64
-    of FloatValue: floatValue: float64
-    of StringValue: stringValue: string
-    of BoolValue: boolValue: bool
-    of ComplexValue: complexValue: Complex[float64]
-    of DateTimeValue: dateTimeValue: DateTime
-    of ListValue: listValue: seq[ConfigValue]
-    of MappingValue: mappingValue: Table[string, ConfigValue]
-    of NestedConfigValue: configValue: Config
+    of IntegerValue: intValue*: int64
+    of FloatValue: floatValue*: float64
+    of StringValue: stringValue*: string
+    of BoolValue: boolValue*: bool
+    of ComplexValue: complexValue*: Complex[float64]
+    of DateTimeValue: dateTimeValue*: DateTime
+    of ListValue: listValue*: seq[ConfigValue]
+    of MappingValue: mappingValue*: Table[string, ConfigValue]
+    of NestedConfigValue: configValue*: Config
     of InternalValue, NoneValue: otherValue: int32
     of InternalListValue: internalListValue: seq[ASTNode]
     of InternalMappingValue: internalMappingValue: ref Table[string, ASTNode]

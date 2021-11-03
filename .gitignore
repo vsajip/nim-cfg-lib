@@ -1,3 +1,4 @@
 tests/test?
 tests/test?.exe
 nimcache/
+tmp/

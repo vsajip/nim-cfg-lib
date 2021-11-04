@@ -16,6 +16,7 @@ jobs:
     strategy:
       matrix:
         nim-version:
+          - '1.6.0'
           - '1.6.x'
           - 'stable'
     steps:

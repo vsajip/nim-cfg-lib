@@ -8,6 +8,6 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 1.0.0"
+requires "nim >= 1.6.0"
 requires "nre >= 2.0.0"
 requires "timezones >= 0.5"

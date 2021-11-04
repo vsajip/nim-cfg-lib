@@ -27,8 +27,17 @@ jobs:
         name: Set up Nim
         with:
           nim-version: ${{ matrix.nim-version }}
-      - name: Run tests
+      - name: Run tests on POSIX
+        if: ${{ matrix.os != 'windows-latest' }}
         run: |
+          nim --version
+          nimble install -Y
+          nimble test -Y
+      - name: Run tests on Windows
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          $env:HOME = $env:USERPROFILE
+          echo "Set HOME to $HOME"
           nim --version
           nimble install -Y
           nimble test -Y

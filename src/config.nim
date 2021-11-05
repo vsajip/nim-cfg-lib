@@ -873,11 +873,11 @@ proc newParser*(stream: Stream): Parser =
   result.lexer = newTokenizer(stream)
   result.next = result.lexer.getToken
 
-proc parserFromFile*(path: string): Parser =
+proc parserFromFile(path: string): Parser =
   var stream = newFileStream(path)
   newParser(stream)
 
-proc parserFromSource*(source: string): Parser =
+proc parserFromSource(source: string): Parser =
   var stream = newStringStream(source)
   newParser(stream)
 
@@ -1342,7 +1342,7 @@ type
     InternalMappingValue
 
   ConfigValue* = object
-    case kind: ValueKind
+    case kind*: ValueKind
     of IntegerValue: intValue*: int64
     of FloatValue: floatValue*: float64
     of StringValue: stringValue*: string
@@ -1356,16 +1356,16 @@ type
     of InternalListValue: internalListValue: seq[ASTNode]
     of InternalMappingValue: internalMappingValue: ref Table[string, ASTNode]
 
-  StringConverter = proc(s: string, c: Config): ConfigValue
+  StringConverter* = proc(s: string, c: Config): ConfigValue
 
   Config = ref object of RootObj
     noDuplicates*: bool
     strictConversions*: bool
-    context: Table[string, ConfigValue]
+    context*: Table[string, ConfigValue]
     path: string
     rootDir: string
     includePath*: seq[string]
-    stringConverter: StringConverter
+    stringConverter*: StringConverter
     cache: ref Table[string, ConfigValue]
     data: ref Table[string, ASTNode]
     parent: Config
@@ -1378,7 +1378,7 @@ proc hash(node: ASTNode): Hash =
   h = h !& hash(node.startpos.column)
   result = !$h
 
-proc `==`(cv1, cv2: ConfigValue): bool
+proc `==`*(cv1, cv2: ConfigValue): bool
 
 proc compareLists(list1, list2: seq[ConfigValue]): bool =
   if len(list1) != len(list2): return false
@@ -1451,7 +1451,8 @@ proc stringFor(v: ConfigValue): string =
 
 var MISSING = ConfigValue(kind: InternalValue, otherValue: 0)
 
-proc get(self: Config, key: string, default: ConfigValue = MISSING): ConfigValue
+proc get*(self: Config, key: string, default: ConfigValue = MISSING): ConfigValue
+proc `[]`*(self: Config, key: string): ConfigValue
 
 proc defaultStringConverter(s: string, cfg: Config): ConfigValue =
   result = ConfigValue(kind: StringValue, stringValue: s)
@@ -1514,7 +1515,7 @@ proc defaultStringConverter(s: string, cfg: Config): ConfigValue =
       if pos < outer.a:
         parts.add(s[pos..outer.a - 1])
       try:
-        parts.add(stringFor(cfg.get(path)))
+        parts.add(stringFor(cfg[path]))
       except CatchableError:
         failed = true
         break
@@ -1571,9 +1572,16 @@ proc load*(self: Config, stream: Stream) =
   if not self.cache.isNil:
     self.cache.clear()
 
-proc setPath*(self: Config, path: string) =
+proc path*(self: Config): string = self.path
+
+proc setPath(self: Config, path: string) =
   self.path = path
   self.rootDir = path.parentDir
+
+proc `path=`*(self: Config, path: string) =
+  self.setPath(path)
+
+proc rootDir*(self: Config): string = self.rootDir
 
 proc loadFile*(self: Config, path: string) =
   var stream = newFileStream(path)
@@ -1629,7 +1637,7 @@ proc evaluated(self: Config, node: ASTNode): ConfigValue
 proc getFromPath(self: Config, path: string): ConfigValue
 proc getFromPath(self: Config, node: ASTNode): ConfigValue
 
-proc get(self: Config, key: string, default: ConfigValue = MISSING): ConfigValue =
+proc get*(self: Config, key: string, default: ConfigValue = MISSING): ConfigValue =
   if not self.cache.isNil and key in self.cache:
     result = self.cache[key]
   else:
@@ -1852,7 +1860,7 @@ proc evalNegate(self: Config, node: UnaryNode): ConfigValue =
 
 proc asList(self: Config, list: seq[ASTNode]): seq[ConfigValue]
 proc asDict(self: Config, map: ref Table[string, ASTNode]): Table[string, ConfigValue]
-proc asDict(self: Config): Table[string, ConfigValue]
+proc asDict*(self: Config): Table[string, ConfigValue]
 
 proc toMapping(self: Config, v: ConfigValue): Table[string, ConfigValue] =
   if v.kind == MappingValue: v.mappingValue else: self.asDict(

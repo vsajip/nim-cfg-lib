@@ -1712,6 +1712,11 @@ proc evalAt(self: Config, node: UnaryNode): ConfigValue =
     e.msg = &"unable to locate {fn.stringValue}"
     e.location = node.operand.startpos
     raise e
+  if self.path.fileExists and sameFile(self.path, p):
+    new(e)
+    e.msg = &"configuration cannot include itself: {fn.stringValue}"
+    e.location = node.operand.startpos
+    raise e
   var parser = parserFromFile(p)
   var container = parser.container()
   if container of MappingNode:

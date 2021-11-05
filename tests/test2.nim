@@ -16,7 +16,7 @@ import unittest
 
 import ../src/config
 
-proc data_file_path(paths: varargs[string]): string =
+proc dataFilePath(paths: varargs[string]): string =
   "tests" / "resources" / paths.join("/")
 
 #
@@ -31,7 +31,7 @@ test "config files":
     "routes.cfg"
   ])
 
-  var d = data_file_path("derived")
+  var d = dataFilePath("derived")
   var cfg = newConfig()
   for kind, p in walkDir(d):
     if kind == pcFile:
@@ -104,9 +104,9 @@ proc CV(c: Complex64): ConfigValue =
   ConfigValue(kind: ComplexValue, complexValue: c)
 
 test "main config":
-  var p = data_file_path("derived", "main.cfg")
+  var p = dataFilePath("derived", "main.cfg")
   var cfg = newConfig()
-  cfg.includePath.add(data_file_path("base"))
+  cfg.includePath.add(dataFilePath("base"))
   cfg.loadFile(p)
 
   var lcfg = cfg.getSubConfig("logging")
@@ -205,9 +205,9 @@ test "main config":
       check tcase.msg == e.msg
 
 test "example config":
-  var p = data_file_path("derived", "example.cfg")
+  var p = dataFilePath("derived", "example.cfg")
   var cfg = newConfig()
-  cfg.includePath.add(data_file_path("base"))
+  cfg.includePath.add(dataFilePath("base"))
   cfg.loadFile(p)
 
   check cfg["snowman_escaped"] == cfg["snowman_unescaped"]
@@ -280,7 +280,7 @@ test "example config":
   check m == cfg.getSubConfig("incl_mapping_body").asDict()
 
 test "duplicates":
-  var p = data_file_path("derived", "dupes.cfg")
+  var p = dataFilePath("derived", "dupes.cfg")
   var cfg = newConfig()
 
   try:
@@ -293,7 +293,7 @@ test "duplicates":
   check CV("not again!") == cfg["foo"]
 
 test "context":
-  var p = data_file_path("derived", "context.cfg")
+  var p = dataFilePath("derived", "context.cfg")
   var cfg = newConfig()
   cfg.context = {"bozz": CV("bozz-bozz")}.toTable
   cfg.loadFile(p)
@@ -305,7 +305,7 @@ test "context":
     check e.msg == "unknown variable: not_there"
 
 test "config expressions":
-  var p = data_file_path("derived", "test.cfg")
+  var p = dataFilePath("derived", "test.cfg")
   var cfg = fromFile(p)
   var m = {"a": CV("b"), "c": CV("d")}.toTable
   check CV(m) == cfg["dicts_added"]
@@ -363,9 +363,9 @@ test "config expressions":
       check tcase.msg == e.msg
 
 test "forms":
-  var p = data_file_path("derived", "forms.cfg")
+  var p = dataFilePath("derived", "forms.cfg")
   var cfg = newConfig()
-  cfg.includePath.add(data_file_path("base"))
+  cfg.includePath.add(dataFilePath("base"))
   cfg.loadFile(p)
 
   type
@@ -510,7 +510,7 @@ test "forms":
     check tcase.ev == cfg[tcase.text]
 
 test "path across includes":
-  var p = data_file_path("base", "main.cfg")
+  var p = dataFilePath("base", "main.cfg")
   var cfg = fromFile(p)
   check CV("run/server.log") == cfg["logging.appenders.file.filename"]
   check CV(true) == cfg["logging.appenders.file.append"]
@@ -520,7 +520,7 @@ test "path across includes":
   check CV(false) == cfg["redirects.freeotp.permanent"]
 
 test "circular references":
-  var p = data_file_path("derived", "test.cfg")
+  var p = dataFilePath("derived", "test.cfg")
   var cfg = fromFile(p)
 
   type
@@ -541,7 +541,7 @@ test "circular references":
       check tcase.msg == e.msg
 
 test "slices and indices":
-  var p = data_file_path("derived", "test.cfg")
+  var p = dataFilePath("derived", "test.cfg")
   var cfg = fromFile(p)
 
   type
@@ -597,17 +597,25 @@ test "slices and indices":
       check e.msg == emsg
 
 test "absolute include paths":
-  var p = data_file_path("derived", "test.cfg").absolutePath.replace("\\", "/")
+  var p = dataFilePath("derived", "test.cfg").absolutePath.replace("\\", "/")
   var source = &"test: @'{p}'"
   var cfg = fromSource(source)
 
   check CV(2) == cfg["test.computed6"]
 
 test "nested include paths":
-  var base = data_file_path("base")
-  var derived = data_file_path("derived")
-  var another = data_file_path("another")
+  var base = dataFilePath("base")
+  var derived = dataFilePath("derived")
+  var another = dataFilePath("another")
   var p = base / "top.cfg"
   var cfg = fromFile(p)
   cfg.includePath = @[derived, another]
   check CV(42) == cfg["level1.level2.final"]
+
+test "path recursion":
+  var p = dataFilePath("derived", "recurse.cfg")
+  var cfg = fromFile(p)
+  try:
+    echo cfg["recurse"]
+  except ConfigError as e:
+    check e.msg == "configuration cannot include itself: recurse.cfg"

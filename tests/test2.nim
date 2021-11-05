@@ -341,7 +341,7 @@ test "config expressions":
 
   # interpolation
 
-  check CV("A-4 a test_foo true 10 1e-07 1 b [a, c, e, g]Z") == cfg["interp"]
+  check CV("A-4 a test_foo true 10 1e-07 1e+20 1 b [a, c, e, g]Z") == cfg["interp"]
   check CV("{a: b}") == cfg["interp2"]
 
   type

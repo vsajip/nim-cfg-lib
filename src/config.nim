@@ -124,7 +124,7 @@ proc update(self: Location, source: Location) =
   self.line = source.line
   self.column = source.column
 
-proc nextLine*(loc: Location) =
+proc nextLine(loc: Location) =
   loc.line += 1
   loc.column = 1
 
@@ -164,7 +164,7 @@ func `==`(t1, t2: TokenValue): bool =
   else:
     return t1.otherValue == t2.otherValue
 
-proc `==`*(t1, t2: Token): bool =
+proc `==`(t1, t2: Token): bool =
   if t1.value != t2.value:
     return false
   if t1.text != t2.text:
@@ -265,7 +265,7 @@ type
     charLocation: Location
     pushedBack: seq[PushBackData]
 
-proc newTokenizer*(stream: Stream): Tokenizer =
+proc newTokenizer(stream: Stream): Tokenizer =
   new(result)
   result.stream = newUTF8Decoder(stream)
   result.location = newLocation()
@@ -837,7 +837,7 @@ proc getToken(self: Tokenizer): Token =
   assert result.kind != Error
   # echo &"*** {result.text} ({result.startpos.line}, {result.startpos.column}) -> ({result.endpos.line}, {result.endpos.column})"
 
-proc getAllTokens*(self: Tokenizer): seq[Token] =
+proc getAllTokens(self: Tokenizer): seq[Token] =
   result = @[]
   while true:
     var t = self.getToken
@@ -868,7 +868,7 @@ type
     lexer: Tokenizer
     next: Token
 
-proc newParser*(stream: Stream): Parser =
+proc newParser(stream: Stream): Parser =
   new(result)
   result.lexer = newTokenizer(stream)
   result.next = result.lexer.getToken
@@ -961,17 +961,17 @@ proc value(self: Parser): Token =
     discard self.advance()
 
 # Forward declarations
-proc list*(self: Parser): ListNode
-proc mapping*(self: Parser): MappingNode
-proc expr*(self: Parser): ASTNode
-proc primary*(self: Parser): ASTNode
+proc list(self: Parser): ListNode
+proc mapping(self: Parser): MappingNode
+proc expr(self: Parser): ASTNode
+proc primary(self: Parser): ASTNode
 
 proc newUnaryNode(op: TokenKind, operand: ASTNode): UnaryNode =
   new(result)
   result.kind = op
   result.operand = operand
 
-proc atom*(self: Parser): ASTNode =
+proc atom(self: Parser): ASTNode =
   var kind = self.next.kind
   case kind:
   of LeftCurly:
@@ -999,7 +999,7 @@ proc atom*(self: Parser): ASTNode =
     e.location = self.next.startpos
     raise e
 
-proc listBody*(self: Parser): ListNode
+proc listBody(self: Parser): ListNode
 
 proc trailer(self: Parser): (TokenKind, ASTNode) =
 
@@ -1082,7 +1082,7 @@ proc newBinaryNode(op: TokenKind, lhs, rhs: ASTNode): BinaryNode =
 #   if n1.lhs != n2.lhs: return false
 #   return n1.rhs == n2.rhs
 
-proc primary*(self: Parser): ASTNode =
+proc primary(self: Parser): ASTNode =
   result = self.atom()
   var kind = self.next.kind
 
@@ -1101,7 +1101,7 @@ proc mappingKey(self: Parser): Token =
     result = self.next
     discard self.advance()
 
-proc mappingBody*(self: Parser): MappingNode =
+proc mappingBody(self: Parser): MappingNode =
   var elements: seq[(Token, ASTNode)] = @[]
   var kind = self.consumeNewlines()
   var spos = self.next.startpos
@@ -1140,12 +1140,12 @@ proc mappingBody*(self: Parser): MappingNode =
   result.elements = elements
   result.startpos = spos
 
-proc mapping*(self: Parser): MappingNode =
+proc mapping(self: Parser): MappingNode =
   discard self.expect(LeftCurly)
   result = self.mappingBody()
   discard self.expect(RightCurly)
 
-proc listBody*(self: Parser): ListNode =
+proc listBody(self: Parser): ListNode =
   var elements: seq[ASTNode] = @[]
   var kind = self.consumeNewlines()
   var spos = self.next.startpos
@@ -1162,12 +1162,12 @@ proc listBody*(self: Parser): ListNode =
   result.elements = elements
   result.startpos = spos
 
-proc list*(self: Parser): ListNode =
+proc list(self: Parser): ListNode =
   discard self.expect(LeftBracket)
   result = self.listBody()
   discard self.expect(RightBracket)
 
-proc container*(self: Parser): ASTNode =
+proc container(self: Parser): ASTNode =
   var kind = self.consumeNewlines()
   case kind:
   of LeftCurly:
@@ -1185,9 +1185,9 @@ proc container*(self: Parser): ASTNode =
     raise e
   discard self.consumeNewlines()
 
-proc unaryExpr*(self: Parser): ASTNode
+proc unaryExpr(self: Parser): ASTNode
 
-proc power*(self: Parser): ASTNode =
+proc power(self: Parser): ASTNode =
   result = self.primary()
   while self.next.kind == Power:
     discard self.advance()
@@ -1199,7 +1199,7 @@ proc power*(self: Parser): ASTNode =
 #   if n1.kind != n2.kind: return false
 #   return n1.operand == n2.operand
 
-proc unaryExpr*(self: Parser): ASTNode =
+proc unaryExpr(self: Parser): ASTNode =
   var kind = self.next.kind
   var spos = self.next.startpos
   if kind != Plus and kind != Minus and kind != BitwiseComplement and kind != At:
@@ -1209,7 +1209,7 @@ proc unaryExpr*(self: Parser): ASTNode =
     result = newUnaryNode(kind, self.unaryExpr())
   result.startpos = spos
 
-proc mulExpr*(self: Parser): ASTNode =
+proc mulExpr(self: Parser): ASTNode =
   result = self.unaryExpr()
   var kind = self.next.kind
   var spos = self.next.startpos
@@ -1219,7 +1219,7 @@ proc mulExpr*(self: Parser): ASTNode =
     kind = self.next.kind
   result.startpos = spos
 
-proc addExpr*(self: Parser): ASTNode =
+proc addExpr(self: Parser): ASTNode =
   result = self.mulExpr()
   var kind = self.next.kind
   var spos = self.next.startpos
@@ -1229,7 +1229,7 @@ proc addExpr*(self: Parser): ASTNode =
     kind = self.next.kind
   result.startpos = spos
 
-proc shiftExpr*(self: Parser): ASTNode =
+proc shiftExpr(self: Parser): ASTNode =
   result = self.addExpr()
   var kind = self.next.kind
   var spos = self.next.startpos
@@ -1239,7 +1239,7 @@ proc shiftExpr*(self: Parser): ASTNode =
     kind = self.next.kind
   result.startpos = spos
 
-proc bitAndExpr*(self: Parser): ASTNode =
+proc bitAndExpr(self: Parser): ASTNode =
   result = self.shiftExpr()
   var kind = self.next.kind
   var spos = self.next.startpos
@@ -1249,7 +1249,7 @@ proc bitAndExpr*(self: Parser): ASTNode =
     kind = self.next.kind
   result.startpos = spos
 
-proc bitXorExpr*(self: Parser): ASTNode =
+proc bitXorExpr(self: Parser): ASTNode =
   result = self.bitAndExpr()
   var kind = self.next.kind
   var spos = self.next.startpos
@@ -1259,7 +1259,7 @@ proc bitXorExpr*(self: Parser): ASTNode =
     kind = self.next.kind
   result.startpos = spos
 
-proc bitOrExpr*(self: Parser): ASTNode =
+proc bitOrExpr(self: Parser): ASTNode =
   result = self.bitXorExpr()
   var kind = self.next.kind
   var spos = self.next.startpos
@@ -1288,7 +1288,7 @@ var comparisonOperators = toHashSet([
   Equal, Unequal, AltUnequal, Is, In, Not
 ])
 
-proc comparison*(self: Parser): ASTNode =
+proc comparison(self: Parser): ASTNode =
   var spos = self.next.startpos
   result = self.bitOrExpr()
   if self.next.kind in comparisonOperators:

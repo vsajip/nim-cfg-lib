@@ -20,7 +20,7 @@ import typetraits
 import unicode
 
 type
-  TokenKind* = enum
+  TokenKind = enum
     EOF,
     Word,
     IntegerNumber,
@@ -74,21 +74,28 @@ type
     Error
 
   Location* = ref object
+    ##
+    ## This type represents a location in CFG source.
+    ##
     line*: int
     column*: int
 
   R = Rune
 
-  DecoderError* = object of CatchableError
+  DecoderError = object of CatchableError
 
-  RecognizerError* = object of CatchableError
+  RecognizerError = object of CatchableError
     location: Location
 
-  TokenizerError* = object of RecognizerError
+  TokenizerError = object of RecognizerError
 
-  ParserError* = object of RecognizerError
+  ParserError = object of RecognizerError
 
   ConfigError* = object of RecognizerError
+    ##
+    ## This type represents an error encountered when
+    ## working with CFG.
+    ##
 
   TokenValue = object
     case kind: TokenKind
@@ -104,7 +111,7 @@ type
     startpos: Location
     endpos: Location
 
-  Token* = ref object of ASTNode
+  Token = ref object of ASTNode
     text: string
     value: TokenValue
 
@@ -115,7 +122,7 @@ type
 #  Location
 # ------------------------------------------------------------------------
 
-func newLocation*(line: int = 1, column: int = 1): Location = Location(
+func newLocation(line: int = 1, column: int = 1): Location = Location(
     line: line, column: column)
 
 func copy(source: Location): Location = newLocation(source.line, source.column)
@@ -132,7 +139,7 @@ proc prevCol(loc: Location) =
   if loc.column > 0:
     loc.column -= 1
 
-func `$` (loc: Location): string = &"({loc.line}, {loc.column})"
+func `$`(loc: Location): string = &"({loc.line}, {loc.column})"
 
 func `==`(loc1, loc2: Location): bool =
   assert not loc1.isNil
@@ -143,14 +150,14 @@ func `==`(loc1, loc2: Location): bool =
 #  Token
 # ------------------------------------------------------------------------
 
-func newToken*(text: string, value: TokenValue): Token = Token(text: text,
+func newToken(text: string, value: TokenValue): Token = Token(text: text,
     value: value, kind: value.kind)
 
 proc setValue(t: Token, v: TokenValue) =
   t.value = v
   t.kind = t.value.kind
 
-func `$`*(tok: Token): string =
+func `$`(tok: Token): string =
   &"_T({tok.text}|{tok.value}|{tok.startpos}|{tok.endpos})"
 
 func `==`(t1, t2: TokenValue): bool =
@@ -1327,6 +1334,9 @@ proc expr(self: Parser): ASTNode =
 
 type
   ValueKind* = enum
+    ##
+    ## This type represents the kinds of configuration value supported.
+    ##
     IntegerValue,
     FloatValue,
     ComplexValue,
@@ -1342,6 +1352,13 @@ type
     InternalMappingValue
 
   ConfigValue* = object
+    ##
+    ## This type represents an individual configuration value, though
+    ## that value could be itself a list of values or a mapping of strings
+    ## to values. The `kind` field indicates the type of value being
+    ## represented, and correspondingly one of the other fields holds the
+    ## actual data.
+    ##
     case kind*: ValueKind
     of IntegerValue: intValue*: int64
     of FloatValue: floatValue*: float64
@@ -1359,11 +1376,13 @@ type
   StringConverter* = proc(s: string, c: Config): ConfigValue
 
   Config = ref object of RootObj
+    ##
+    ## This type represents an entire configuration.
+    ##
     noDuplicates*: bool
     strictConversions*: bool
     context*: Table[string, ConfigValue]
-    path: string
-    rootDir: string
+    path*: string
     includePath*: seq[string]
     stringConverter*: StringConverter
     cache: ref Table[string, ConfigValue]
@@ -1396,7 +1415,10 @@ proc compareMappings(map1, map2: Table[string, ConfigValue]): bool =
       return false
   true
 
-proc `==`(cv1, cv2: ConfigValue): bool =
+proc `==`*(cv1, cv2: ConfigValue): bool =
+  ##
+  ## Compares two `ConfigValues` for equality.
+  ##
   if cv1.kind != cv2.kind: return false
   case cv1.kind
   of IntegerValue: return cv1.intValue == cv2.intValue
@@ -1526,19 +1548,35 @@ proc defaultStringConverter(s: string, cfg: Config): ConfigValue =
       result.stringValue = parts.join()
 
 proc newConfig*(): Config =
+  ##
+  ## Creates a new configuration object, without any actual
+  ## configuration.
+  ##
   new(result)
   result.noDuplicates = true
   result.strictConversions = true
   result.includePath = @[]
   result.stringConverter = defaultStringConverter
 
-proc cached*(self: Config): bool = not self.cache.isNil
+proc cached*(self: Config): bool =
+  ##
+  ## See whether the configuration `self` has a cache.
+  ##
+  not self.cache.isNil
 
 proc `cached=`*(self: Config, cache: bool) =
+  ##
+  ## Set whether the configuration `self` has a cache.
+  ##
   if cache and self.cache.isNil:
     new(self.cache)
   elif not cache and not self.cache.isNil:
     self.cache = nil
+
+proc newConfigError(msg: string, loc: Location): ref ConfigError =
+  new(result)
+  result.msg = msg
+  result.location = loc
 
 proc wrapMapping(self: Config, mn: MappingNode): ref Table[string, ASTNode] =
   new(result)
@@ -1550,66 +1588,65 @@ proc wrapMapping(self: Config, mn: MappingNode): ref Table[string, ASTNode] =
     var k = (if t.kind == Word: t.text else: t.value.stringValue)
     if not seen.isNil:
       if k in seen:
-        var e: ref ConfigError
-        new(e)
-        e.msg = &"duplicate key {k} seen at {t.startpos} (previously at {seen[k]})"
-        e.location = t.startpos
-        raise e
+        raise newConfigError(&"duplicate key {k} seen at {t.startpos} (previously at {seen[k]})", t.startpos)
       seen[k] = t.startpos
     result[k] = v
 
 proc load*(self: Config, stream: Stream) =
+  ##
+  ## Load or reload the configuration `self` from the specified `stream`.
+  ##
   var p = newParser(stream)
   var node = p.container()
 
   if not (node of MappingNode):
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"root configuration must be a mapping"
-    raise e
+    raise newConfigError(&"root configuration must be a mapping", node.startpos)
   self.data = self.wrapMapping(MappingNode(node))
   if not self.cache.isNil:
     self.cache.clear()
 
-proc path*(self: Config): string = self.path
-
-proc setPath(self: Config, path: string) =
-  self.path = path
-  self.rootDir = path.parentDir
-
-proc `path=`*(self: Config, path: string) =
-  self.setPath(path)
-
-proc rootDir*(self: Config): string = self.rootDir
+proc rootDir*(self: Config): string =
+  ##
+  ## Get the parent directory of the `path` field of configuration
+  ## `self`. This directory is searched for included configurations
+  ## before `includePath` is searched.
+  ##
+  if len(self.path) == 0: "" else: self.path.parentDir
 
 proc loadFile*(self: Config, path: string) =
+  ##
+  ## Load or reload the configuration `self` from the specified `path`.
+  ##
   var stream = newFileStream(path)
-  self.setPath(path)
+  self.path = path
   self.load(stream)
 
 proc fromFile*(path: string): Config =
+  ##
+  ## Creates a new configuration object, with the configuration
+  ## read from the file specified in `path`.
+  ##
   result = newConfig()
   result.loadFile(path)
 
 proc fromSource*(source: string): Config =
+  ##
+  ## Creates a new configuration object, with the configuration
+  ## specified in `source`.
+  ##
   result = newConfig()
   var stream = newStringStream(source)
   result.load(stream)
 
 var IDENTIFIER_PATTERN = re(r"(*U)^(?!\d)(\w+)$")
 
-proc isIdentifier*(s: string): bool =
+proc isIdentifier(s: string): bool =
   s.match(IDENTIFIER_PATTERN).isSome
 
 proc parsePath(s: string): ASTNode =
 
   proc fail(loc: Location) =
-    var e: ref ConfigError
-    new(e)
-    e.msg = &"invalid path: {s}"
-    e.location = loc
-    raise e
+    raise newConfigError(&"invalid path: {s}", loc)
 
   var p = parserFromSource(s)
 
@@ -1638,23 +1675,22 @@ proc getFromPath(self: Config, path: string): ConfigValue
 proc getFromPath(self: Config, node: ASTNode): ConfigValue
 
 proc get*(self: Config, key: string, default: ConfigValue = MISSING): ConfigValue =
+  ##
+  ## Get a value from the configuration `self` using `key`, and
+  ## return `default` if not present in the configuration.
+  ## The `key` can be a path as well as a simple key.
+  ##
   if not self.cache.isNil and key in self.cache:
     result = self.cache[key]
   else:
-    var e: ref ConfigError
-
     self.refsSeen.clear()
     if self.data.isNil:
-      new(e)
-      e.msg = "no data in configuration"
-      raise e
+      raise newConfigError("no data in configuration", nil)
     if key in self.data:
       result = self.evaluated(self.data[key])
     elif isIdentifier(key):
       if default == MISSING:
-        new(e)
-        e.msg = &"not found in configuration: {key}"
-        raise e
+        raise newConfigError(&"not found in configuration: {key}", nil)
       result = default
     else:
       # not an identifier. Treat as a path
@@ -1670,6 +1706,11 @@ proc get*(self: Config, key: string, default: ConfigValue = MISSING): ConfigValu
 proc unwrap(self: Config, v: ConfigValue): ConfigValue
 
 proc `[]`*(self: Config, key: string): ConfigValue =
+  ##
+  ## Get a value from the configuration `self` using the indexing
+  ## idiom, with `key` as the index. The `key` can be a path as
+  ## well as a simple key.
+  ##
   self.unwrap(self.get(key))
 
 proc convertString(self: Config, s: string): ConfigValue =
@@ -1677,21 +1718,15 @@ proc convertString(self: Config, s: string): ConfigValue =
   result = self.stringConverter(s, self)
   if self.strictConversions and result.kind == StringValue and
       result.stringValue == s:
-    var e: ref ConfigError
-    new(e)
-    e.msg = &"unable to convert string: {s}"
-    raise e
+    raise newConfigError(&"unable to convert string: {s}", nil)
 
 proc evaluate(self: Config, node: ASTNode): ConfigValue
 
 proc evalAt(self: Config, node: UnaryNode): ConfigValue =
   var fn = self.evaluate(node.operand)
-  var e: ref ConfigError
 
   if fn.kind != StringValue:
-    new(e)
-    e.msg = &"@ operand must be a string, but is {fn.kind}"
-    raise e
+    raise newConfigError(&"@ operand must be a string, but is {fn.kind}", node.operand.startpos)
   var found = false
   var p = fn.stringValue
   if p.isAbsolute and p.fileExists:
@@ -1708,15 +1743,9 @@ proc evalAt(self: Config, node: UnaryNode): ConfigValue =
           found = true
           break
   if not found:
-    new(e)
-    e.msg = &"unable to locate {fn.stringValue}"
-    e.location = node.operand.startpos
-    raise e
+    raise newConfigError(&"unable to locate {fn.stringValue}", node.operand.startpos)
   if self.path.fileExists and sameFile(self.path, p):
-    new(e)
-    e.msg = &"configuration cannot include itself: {fn.stringValue}"
-    e.location = node.operand.startpos
-    raise e
+    raise newConfigError(&"configuration cannot include itself: {fn.stringValue}", node.operand.startpos)
   var parser = parserFromFile(p)
   var container = parser.container()
   if container of MappingNode:
@@ -1725,7 +1754,7 @@ proc evalAt(self: Config, node: UnaryNode): ConfigValue =
     cfg.noDuplicates = self.noDuplicates
     cfg.strictConversions = self.strictConversions
     cfg.context = self.context
-    cfg.setPath(p)
+    cfg.path = p
     cfg.includePath = self.includePath
     cfg.cached = self.cached
     cfg.parent = self
@@ -1735,10 +1764,7 @@ proc evalAt(self: Config, node: UnaryNode): ConfigValue =
     var ln = ListNode(container)
     result = ConfigValue(kind: InternalListValue, internalListValue: ln[].elements)
   else:
-    new(e)
-    e.msg = &"unexpected container type {container.type.name}"
-    e.location = node.operand.startpos
-    raise e
+    raise newConfigError(&"unexpected container type {container.type.name}", node.operand.startpos)
 
 proc toSource(node: ASTNode): string =
   if node of Token:
@@ -1794,7 +1820,6 @@ proc toSource(node: ASTNode): string =
 
 proc evalReference(self: Config, node: UnaryNode): ConfigValue =
   if node in self.refsSeen:
-    var e: ref ConfigError
     var nodes: seq[ASTNode] = @[]
 
     for n in self.refsSeen:
@@ -1810,9 +1835,7 @@ proc evalReference(self: Config, node: UnaryNode): ConfigValue =
     for n in nodes:
       var s = toSource(UnaryNode(n).operand)
       parts.add(&"{s} {n.startpos}")
-    new(e)
-    e.msg = "circular reference: " & parts.join(", ")
-    raise e
+    raise newConfigError("circular reference: " & parts.join(", "), nil)
 
   self.refsSeen.incl(node)
   self.getFromPath(node.operand)
@@ -1848,11 +1871,7 @@ proc evalNegate(self: Config, node: UnaryNode): ConfigValue =
   var v = self.evaluate(node.operand)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot negate {v.kind}"
-    raise e
+    raise newConfigError(&"cannot negate {v.kind}", node.startpos)
 
   if v.kind == IntegerValue:
     result = ConfigValue(kind: IntegerValue, intValue: -v.intValue)
@@ -1892,11 +1911,7 @@ proc evalAdd(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot add {lhs.kind} to {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot add {lhs.kind} to {rhs.kind}", node.startpos)
 
   if lhs.kind == StringValue and rhs.kind == StringValue:
     result = ConfigValue(kind: StringValue, stringValue: lhs.stringValue &
@@ -1950,11 +1965,7 @@ proc evalSubtract(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot subtract {rhs.kind} from {lhs.kind}"
-    raise e
+    raise newConfigError(&"cannot subtract {rhs.kind} from {lhs.kind}", node.startpos)
 
   if isNumber(lhs) and isNumber(rhs):
     if lhs.kind != FloatValue and rhs.kind != FloatValue:
@@ -1983,11 +1994,7 @@ proc evalMultiply(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot multiply {lhs.kind} by {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot multiply {lhs.kind} by {rhs.kind}", node.startpos)
 
   if isNumber(lhs) and isNumber(rhs):
     if lhs.kind != FloatValue and rhs.kind != FloatValue:
@@ -2014,11 +2021,7 @@ proc evalDivide(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot divide {lhs.kind} by {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot divide {lhs.kind} by {rhs.kind}", node.startpos)
 
   if isNumber(lhs) and isNumber(rhs):
     var v1 = toFloat(lhs)
@@ -2042,11 +2045,7 @@ proc evalIntegerDivide(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot integer-divide {lhs.kind} by {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot integer-divide {lhs.kind} by {rhs.kind}", node.startpos)
 
   if lhs.kind == IntegerValue and rhs.kind == IntegerValue:
     result = ConfigValue(kind: IntegerValue,
@@ -2059,11 +2058,7 @@ proc evalModulo(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot compute {lhs.kind} modulo {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot compute {lhs.kind} modulo {rhs.kind}", node.startpos)
 
   if lhs.kind == IntegerValue and rhs.kind == IntegerValue:
     result = ConfigValue(kind: IntegerValue,
@@ -2076,11 +2071,7 @@ proc evalLeftShift(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot left-shift {lhs.kind} by {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot left-shift {lhs.kind} by {rhs.kind}", node.startpos)
 
   if lhs.kind == IntegerValue and rhs.kind == IntegerValue:
     result = ConfigValue(kind: IntegerValue,
@@ -2093,11 +2084,7 @@ proc evalRightShift(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot right-shift {lhs.kind} by {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot right-shift {lhs.kind} by {rhs.kind}", node.startpos)
 
   if lhs.kind == IntegerValue and rhs.kind == IntegerValue:
     result = ConfigValue(kind: IntegerValue,
@@ -2110,11 +2097,7 @@ proc evalPower(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot raise {lhs.kind} to the power of {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot raise {lhs.kind} to the power of {rhs.kind}", node.startpos)
 
   if isNumber(lhs) and isNumber(rhs):
     if lhs.kind == IntegerValue and rhs.kind == IntegerValue:
@@ -2158,11 +2141,7 @@ proc evalBitwiseAnd(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot bitwise-and {lhs.kind} and {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot bitwise-and {lhs.kind} and {rhs.kind}", node.startpos)
 
   if lhs.kind == IntegerValue and rhs.kind == IntegerValue:
     result = ConfigValue(kind: IntegerValue, intValue: bitand(lhs.intValue, rhs.intValue))
@@ -2174,11 +2153,7 @@ proc evalBitwiseOr(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot bitwise-or {lhs.kind} and {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot bitwise-or {lhs.kind} and {rhs.kind}", node.startpos)
 
   if lhs.kind == IntegerValue and rhs.kind == IntegerValue:
     result = ConfigValue(kind: IntegerValue, intValue: bitor(lhs.intValue, rhs.intValue))
@@ -2192,11 +2167,7 @@ proc evalBitwiseXor(self: Config, node: BinaryNode): ConfigValue =
   var rhs = self.evaluate(node.rhs)
 
   proc cannot() =
-    var e: ref ConfigError
-    new(e)
-    e.location = node.startpos
-    e.msg = &"cannot bitwise-xor {lhs.kind} and {rhs.kind}"
-    raise e
+    raise newConfigError(&"cannot bitwise-xor {lhs.kind} and {rhs.kind}", node.startpos)
 
   if lhs.kind == IntegerValue and rhs.kind == IntegerValue:
     result = ConfigValue(kind: IntegerValue, intValue: bitxor(lhs.intValue, rhs.intValue))
@@ -2205,7 +2176,6 @@ proc evalBitwiseXor(self: Config, node: BinaryNode): ConfigValue =
 
 proc evaluate(self: Config, node: ASTNode): ConfigValue =
   if node of Token:
-    var e: ref ConfigError
     var t = Token(node)
     var v = t.value
     case t.kind
@@ -2224,17 +2194,12 @@ proc evaluate(self: Config, node: ASTNode): ConfigValue =
     of Word:
       var k = t.text
       if k notin self.context:
-        new(e)
-        e.location = t.startpos
-        e.msg = &"unknown variable: {k}"
-        raise e
+        raise newConfigError(&"unknown variable: {k}", t.startpos)
       result = self.context[k]
     of BackTick:
       result = self.convertString(v.stringValue)
     else:
-      new(e)
-      e.msg = &"Unable to evaluate token of this kind: {t.kind}"
-      raise e
+      raise newConfigError(&"Unable to evaluate token of this kind: {t.kind}", t.startpos)
   elif node of MappingNode:
     var mn = MappingNode(node)
     var wn = self.wrapMapping(mn)
@@ -2286,10 +2251,7 @@ proc evaluate(self: Config, node: ASTNode): ConfigValue =
     of BitwiseXor:
       result = self.evalBitwiseXor(BinaryNode(node))
     else:
-      var e: ref ConfigError
-      new(e)
-      e.msg = &"unable to evaluate node of kind: {node.kind}"
-      raise e
+      raise newConfigError(&"unable to evaluate node of kind: {node.kind}", node.startpos)
 
 proc evaluated(self: Config, node: ASTNode): ConfigValue =
   result = self.evaluate(node)
@@ -2297,13 +2259,6 @@ proc evaluated(self: Config, node: ASTNode): ConfigValue =
 proc getSlice(self: Config, container: ConfigValue,
     sn: SliceNode): ConfigValue =
   var start, stop, step, size: int64
-
-  proc fail(msg: string, loc: Location) =
-    var e: ref ConfigError
-    new(e)
-    e.msg = msg
-    e.location = loc
-    raise e
 
   proc doSlice[T](container: seq[T], start, stop, step: int64): seq[T] =
     var i = start
@@ -2323,17 +2278,17 @@ proc getSlice(self: Config, container: ConfigValue,
   else:
     var v = self.evaluated(sn.step)
     if v.kind != IntegerValue:
-      fail(&"step is not an integer, but {v.kind}", sn.step.startpos)
+      raise newConfigError(&"step is not an integer, but {v.kind}", sn.step.startpos)
     step = v.intValue
     if step == 0:
-      fail("step cannot be zero", sn.step.startpos)
+      raise newConfigError("step cannot be zero", sn.step.startpos)
 
   if sn.startIndex.isNil:
     start = 0
   else:
     var v = self.evaluated(sn.startIndex)
     if v.kind != IntegerValue:
-      fail(&"start is not an integer, but {v.kind}", sn.startIndex.startpos)
+      raise newConfigError(&"start is not an integer, but {v.kind}", sn.startIndex.startpos)
     start = v.intValue
     if start < 0:
       if start >= -size:
@@ -2348,7 +2303,7 @@ proc getSlice(self: Config, container: ConfigValue,
   else:
     var v = self.evaluated(sn.stopIndex)
     if v.kind != IntegerValue:
-      fail(&"stop is not an integer, but {v.kind}", sn.stopIndex.startpos)
+      raise newConfigError(&"stop is not an integer, but {v.kind}", sn.stopIndex.startpos)
     stop = v.intValue
     if stop < 0:
       if stop >= -size:
@@ -2378,21 +2333,16 @@ proc getFromPath(self: Config, path: string): ConfigValue =
 proc getFromPath(self: Config, node: ASTNode): ConfigValue =
   var elements = unpackPath(node)
   var node: ASTNode # OK to shadow the param, as not needed any more
-  var e: ref ConfigError
   var op: TokenKind
   var operand: ASTNode
 
   proc notfound(k: string, loc: Location) =
-    new(e)
-    e.msg = &"not found in configuration: {k}"
-    e.location = loc
-    raise e
+    raise newConfigError(&"not found in configuration: {k}", loc)
 
   (op, operand) = elements[0]
   if op != Dot:
-    new(e)
-    e.msg = &"unexpected path start: {op}"
-    raise e
+    raise newConfigError(&"unexpected path start: {op}", operand.startpos)
+
   var current = ConfigValue(kind: InternalMappingValue,
       internalMappingValue: self.data)
   var config = self
@@ -2416,10 +2366,7 @@ proc getFromPath(self: Config, node: ASTNode): ConfigValue =
           notfound(k, t.startpos)
         node = current.configValue.data[k]
       else:
-        new(e)
-        e.msg = &"invalid container for key {k}: {current.kind}"
-        e.location = t.startpos
-        raise e
+        raise newConfigError(&"invalid container for key {k}: {current.kind}", t.startpos)
       if not node.isNil: # otherwise, current already set
         current = config.evaluate(node)
       if current.kind == NestedConfigValue:
@@ -2427,42 +2374,28 @@ proc getFromPath(self: Config, node: ASTNode): ConfigValue =
     elif op == LeftBracket:
       var idx = config.evaluate(operand)
       if idx.kind != IntegerValue:
-        new(e)
-        e.msg = "invalid index {idx.kind}"
-        e.location = operand.startpos
-        raise e
+        raise newConfigError("invalid index {idx.kind}", operand.startpos)
       var size: int
       if current.kind == ListValue:
         size = len(current.listValue)
       elif current.kind == InternalListValue:
         size = len(current.internalListValue)
       else:
-        new(e)
-        e.msg = &"invalid container for numeric index: {current.kind}"
-        e.location = operand.startpos
-        raise e
+        raise newConfigError(&"invalid container for numeric index: {current.kind}", operand.startpos)
       var n = idx.intValue
       if n < 0: n += size
       if n < 0 or n >= size:
-        new(e)
-        e.msg = &"index out of range: is {idx.intValue}, must be between 0 and {size - 1}"
-        e.location = operand.startpos
-        raise e
+        raise newConfigError(&"index out of range: is {idx.intValue}, must be between 0 and {size - 1}", operand.startpos)
       if current.kind == ListValue:
         current = current.listValue[n]
       else:
         current = config.evaluate(current.internalListValue[n])
     elif op == Colon:
       if current.kind != ListValue and current.kind != InternalListValue:
-        new(e)
-        e.msg = &"invalid container for slicing: {current.kind}"
-        e.location = operand.startpos
-        raise e
+        raise newConfigError(&"invalid container for slicing: {current.kind}", operand.startpos)
       current = self.getSlice(current, SliceNode(operand))
     else:
-      new(e)
-      e.msg = &"invalid path element {op}"
-      raise e
+      raise newConfigError(&"invalid path element {op}", operand.startpos)
   self.refsSeen.clear()
   config.unwrap(current)
 
@@ -2495,11 +2428,12 @@ proc asDict(self: Config, map: ref Table[string, ASTNode]): Table[string, Config
     result[k] = v
 
 proc asDict(self: Config): Table[string, ConfigValue] =
+  ##
+  ## Get the configuration `cfg` as a `Table`. This will recurse into
+  ##  included configurations.
+  ##
   if self.data.isNil:
-    var e: ref ConfigError
-    new(e)
-    e.msg = "no data in configuration"
-    raise e
+    raise newConfigError("no data in configuration", nil)
   self.asDict(self.data)
 
 proc unwrap(self: Config, v: ConfigValue): ConfigValue =
@@ -2513,6 +2447,8 @@ proc unwrap(self: Config, v: ConfigValue): ConfigValue =
     result = v
 
 proc getSubConfig*(self: Config, key: string): Config =
+  ## Get an included configuration (sub-configuration)
+  ## from `self` via `key`. This can be a path as well as a simple key.
   var conf = self[key]
   assert conf.kind == NestedConfigValue
   conf.configValue

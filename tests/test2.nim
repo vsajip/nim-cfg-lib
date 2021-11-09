@@ -37,7 +37,7 @@ test "config files":
     if kind == pcFile:
       try:
         cfg.loadFile(p)
-      except RecognizerError as e:
+      except ConfigError as e:
         var dn, fn: string
 
         (dn, fn) = splitPath(p)
@@ -46,32 +46,6 @@ test "config files":
         else:
           check fn == "dupes.cfg"
           check e.msg == "duplicate key foo seen at (4, 1) (previously at (1, 1))"
-
-test "identifiers":
-  type
-    TCase = object
-      text: string
-      ev: bool
-
-  var cases: seq[TCase] = @[
-    TCase(text: "foo", ev: true),
-    TCase(text: "\u0935\u092e\u0938", ev: true),
-    TCase(text: "\u73b0\u4ee3\u6c49\u8bed\u5e38\u7528\u5b57\u8868", ev: true),
-    TCase(text: "foo ", ev: false),
-    TCase(text: "foo[", ev: false),
-    TCase(text: "foo [", ev: false),
-    TCase(text: "foo.", ev: false),
-    TCase(text: "foo .", ev: false),
-    TCase(text: "\u0935\u092e\u0938.", ev: false),
-    TCase(text: "\u73b0\u4ee3\u6c49\u8bed\u5e38\u7528\u5b57\u8868.", ev: false),
-    TCase(text: "9", ev: false),
-    TCase(text: "9foo", ev: false),
-    TCase(text: "hyphenated-key", ev: false),
-  ]
-
-  for tcase in cases:
-    # echo &"*** {tcase.text} -> {isIdentifier(tcase.text)}"
-    check isIdentifier(tcase.text) == tcase.ev
 
 proc CV(s: string): ConfigValue =
   ConfigValue(kind: StringValue, stringValue: s)

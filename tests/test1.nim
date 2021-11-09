@@ -2805,3 +2805,29 @@ test "sources":
   for s in cases:
     var node = parsePath(s)
     check s == toSource(node)
+
+test "identifiers":
+  type
+    TCase = object
+      text: string
+      ev: bool
+
+  var cases: seq[TCase] = @[
+    TCase(text: "foo", ev: true),
+    TCase(text: "\u0935\u092e\u0938", ev: true),
+    TCase(text: "\u73b0\u4ee3\u6c49\u8bed\u5e38\u7528\u5b57\u8868", ev: true),
+    TCase(text: "foo ", ev: false),
+    TCase(text: "foo[", ev: false),
+    TCase(text: "foo [", ev: false),
+    TCase(text: "foo.", ev: false),
+    TCase(text: "foo .", ev: false),
+    TCase(text: "\u0935\u092e\u0938.", ev: false),
+    TCase(text: "\u73b0\u4ee3\u6c49\u8bed\u5e38\u7528\u5b57\u8868.", ev: false),
+    TCase(text: "9", ev: false),
+    TCase(text: "9foo", ev: false),
+    TCase(text: "hyphenated-key", ev: false),
+  ]
+
+  for tcase in cases:
+    # echo &"*** {tcase.text} -> {isIdentifier(tcase.text)}"
+    check isIdentifier(tcase.text) == tcase.ev

@@ -638,8 +638,7 @@ proc getToken(self: Tokenizer): Token =
             var ch2 = char(c2)
             if ch2 != quote:
               self.pushBack(c2)
-              if ch2 == '\0':
-                self.charLocation.update(c1loc)
+              self.charLocation.update(c1loc)
               self.pushBack(c1)
             else:
               multiline = true

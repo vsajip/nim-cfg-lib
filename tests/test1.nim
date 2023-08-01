@@ -1,5 +1,5 @@
 #
-# Copyright 2016-2021 by Vinay Sajip. All Rights Reserved.
+# Copyright 2016-2023 by Vinay Sajip. All Rights Reserved.
 #
 import sequtils
 import unittest

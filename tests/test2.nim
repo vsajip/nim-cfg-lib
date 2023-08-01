@@ -1,5 +1,5 @@
 #
-# Copyright 2016-2021 by Vinay Sajip. All Rights Reserved.
+# Copyright 2016-2023 by Vinay Sajip. All Rights Reserved.
 #
 import bitops
 import complex
@@ -570,12 +570,16 @@ test "slices and indices":
       var emsg = &"index out of range: is {i}, must be between 0 and 6"
       check e.msg == emsg
 
-test "absolute include paths":
-  var p = dataFilePath("derived", "test.cfg").absolutePath.replace("\\", "/")
-  var source = &"test: @'{p}'"
-  var cfg = fromSource(source)
+test "include paths":
+  var p1 = dataFilePath("derived", "test.cfg")
+  var p2 = p1.absolutePath
+  var plist = [p1, p2]
+  for path in plist:
+    var p = path.replace("\\", "/")
+    var source = &"test: @'{p}'"
+    var cfg = fromSource(source)
 
-  check CV(2) == cfg["test.computed6"]
+    check CV(2) == cfg["test.computed6"]
 
 test "nested include paths":
   var base = dataFilePath("base")

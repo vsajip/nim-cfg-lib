@@ -1610,7 +1610,7 @@ proc rootDir*(self: Config): string =
   ## `self`. This directory is searched for included configurations
   ## before `includePath` is searched.
   ##
-  if len(self.path) == 0: "" else: self.path.parentDir
+  if len(self.path) == 0: getCurrentDir() else: self.path.parentDir()
 
 proc loadFile*(self: Config, path: string) =
   ##
@@ -1669,8 +1669,7 @@ proc unpackPath(node: ASTNode): seq[(TokenKind, ASTNode)] =
   result = @[]
   visit(node, result)
 
-proc evaluated(self: Config, node: ASTNode): ConfigValue
-proc getFromPath(self: Config, path: string): ConfigValue
+proc evaluate(self: Config, node: ASTNode): ConfigValue
 proc getFromPath(self: Config, node: ASTNode): ConfigValue
 
 proc get*(self: Config, key: string, default: ConfigValue = MISSING): ConfigValue =
@@ -1686,7 +1685,7 @@ proc get*(self: Config, key: string, default: ConfigValue = MISSING): ConfigValu
     if self.data.isNil:
       raise newConfigError("no data in configuration", nil)
     if key in self.data:
-      result = self.evaluated(self.data[key])
+      result = self.evaluate(self.data[key])
     elif isIdentifier(key):
       if default == MISSING:
         raise newConfigError(&"not found in configuration: {key}", nil)
@@ -1694,7 +1693,7 @@ proc get*(self: Config, key: string, default: ConfigValue = MISSING): ConfigValu
     else:
       # not an identifier. Treat as a path
       try:
-        result = self.getFromPath(key)
+        result = self.getFromPath(parsePath(key))
       except ConfigError:
         if default == MISSING:
           raise
@@ -1719,8 +1718,6 @@ proc convertString(self: Config, s: string): ConfigValue =
       result.stringValue == s:
     raise newConfigError(&"unable to convert string: {s}", nil)
 
-proc evaluate(self: Config, node: ASTNode): ConfigValue
-
 proc evalAt(self: Config, node: UnaryNode): ConfigValue =
   var fn = self.evaluate(node.operand)
 
@@ -1732,10 +1729,10 @@ proc evalAt(self: Config, node: UnaryNode): ConfigValue =
     found = true
   else:
     var rp = p
-    p = self.rootDir / rp
-    if p.fileExists:
-      found = true
-    else:
+    if self.rootDir != "":
+      p = self.rootDir / rp
+      found = p.fileExists
+    if not found:
       for d in self.includePath:
         p = d / rp
         if p.fileExists:
@@ -1747,7 +1744,12 @@ proc evalAt(self: Config, node: UnaryNode): ConfigValue =
     raise newConfigError(&"configuration cannot include itself: {fn.stringValue}", node.operand.startpos)
   var parser = parserFromFile(p)
   var container = parser.container()
-  if container of MappingNode:
+  if container of ListNode:
+    var ln = ListNode(container)
+    result = ConfigValue(kind: InternalListValue, internalListValue: ln[].elements)
+  elif not (container of MappingNode):
+    raise newConfigError(&"unexpected container type {container.type.name}", node.operand.startpos)
+  else:
     var mn = MappingNode(container)
     var cfg = newConfig()
     cfg.noDuplicates = self.noDuplicates
@@ -1759,11 +1761,6 @@ proc evalAt(self: Config, node: UnaryNode): ConfigValue =
     cfg.parent = self
     cfg.data = cfg.wrapMapping(mn)
     result = ConfigValue(kind: NestedConfigValue, configValue: cfg)
-  elif container of ListNode:
-    var ln = ListNode(container)
-    result = ConfigValue(kind: InternalListValue, internalListValue: ln[].elements)
-  else:
-    raise newConfigError(&"unexpected container type {container.type.name}", node.operand.startpos)
 
 proc toSource(node: ASTNode): string =
   if node of Token:
@@ -2252,9 +2249,6 @@ proc evaluate(self: Config, node: ASTNode): ConfigValue =
     else:
       raise newConfigError(&"unable to evaluate node of kind: {node.kind}", node.startpos)
 
-proc evaluated(self: Config, node: ASTNode): ConfigValue =
-  result = self.evaluate(node)
-
 proc getSlice(self: Config, container: ConfigValue,
     sn: SliceNode): ConfigValue =
   var start, stop, step, size: int64
@@ -2275,7 +2269,7 @@ proc getSlice(self: Config, container: ConfigValue,
   if sn.step.isNil:
     step = 1
   else:
-    var v = self.evaluated(sn.step)
+    var v = self.evaluate(sn.step)
     if v.kind != IntegerValue:
       raise newConfigError(&"step is not an integer, but {v.kind}", sn.step.startpos)
     step = v.intValue
@@ -2285,7 +2279,7 @@ proc getSlice(self: Config, container: ConfigValue,
   if sn.startIndex.isNil:
     start = 0
   else:
-    var v = self.evaluated(sn.startIndex)
+    var v = self.evaluate(sn.startIndex)
     if v.kind != IntegerValue:
       raise newConfigError(&"start is not an integer, but {v.kind}", sn.startIndex.startpos)
     start = v.intValue
@@ -2300,7 +2294,7 @@ proc getSlice(self: Config, container: ConfigValue,
   if sn.stopIndex.isNil:
     stop = size - 1
   else:
-    var v = self.evaluated(sn.stopIndex)
+    var v = self.evaluate(sn.stopIndex)
     if v.kind != IntegerValue:
       raise newConfigError(&"stop is not an integer, but {v.kind}", sn.stopIndex.startpos)
     stop = v.intValue
@@ -2324,10 +2318,6 @@ proc getSlice(self: Config, container: ConfigValue,
   else:
     result = ConfigValue(kind: InternalListValue, internalListValue: doSlice[
         ASTNode](container.internalListValue, start, stop, step))
-
-proc getFromPath(self: Config, path: string): ConfigValue =
-  var node = parsePath(path)
-  getFromPath(self, node)
 
 proc getFromPath(self: Config, node: ASTNode): ConfigValue =
   var elements = unpackPath(node)
@@ -2400,7 +2390,7 @@ proc getFromPath(self: Config, node: ASTNode): ConfigValue =
 
 proc asList(self: Config, list: seq[ASTNode]): seq[ConfigValue] =
   for node in list:
-    var v = self.evaluated(node)
+    var v = self.evaluate(node)
     if v.kind == InternalListValue:
       var lv = self.asList(v.internalListValue)
       v = ConfigValue(kind: ListValue, listValue: lv)
@@ -2414,7 +2404,7 @@ proc asList(self: Config, list: seq[ASTNode]): seq[ConfigValue] =
 
 proc asDict(self: Config, map: ref Table[string, ASTNode]): Table[string, ConfigValue] =
   for k, v in map:
-    var v = self.evaluated(v)
+    var v = self.evaluate(v)
     if v.kind == InternalListValue:
       var lv = self.asList(v.internalListValue)
       v = ConfigValue(kind: ListValue, listValue: lv)

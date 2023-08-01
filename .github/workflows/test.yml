@@ -24,7 +24,7 @@ jobs:
           - '1.6.x'
           - 'stable'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: jiro4989/setup-nim-action@v1
         name: Set up Nim
         with:

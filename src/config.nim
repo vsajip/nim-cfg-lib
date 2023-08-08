@@ -1642,7 +1642,7 @@ var IDENTIFIER_PATTERN = re(r"(*U)^(?!\d)(\w+)$")
 proc isIdentifier(s: string): bool =
   s.match(IDENTIFIER_PATTERN).isSome
 
-proc parsePath(s: string): ASTNode =
+proc parsePath*(s: string): ASTNode =
 
   proc fail(loc: Location) =
     raise newConfigError(&"invalid path: {s}", loc)

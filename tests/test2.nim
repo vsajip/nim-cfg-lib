@@ -17,7 +17,7 @@ import unittest
 import ../src/config
 
 proc dataFilePath(paths: varargs[string]): string =
-  "tests" / "resources" / paths.join("/")
+  currentSourcePath.parentDir / "resources" / paths.join("/")
 
 #
 # Config

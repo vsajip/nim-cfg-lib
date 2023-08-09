@@ -880,7 +880,7 @@ proc newParser(stream: Stream): Parser =
   result.next = result.lexer.getToken
 
 proc parserFromFile(path: string): Parser =
-  var stream = newFileStream(path)
+  var stream = openFileStream(path)
   newParser(stream)
 
 proc parserFromSource(source: string): Parser =
@@ -1616,7 +1616,7 @@ proc loadFile*(self: Config, path: string) =
   ##
   ## Load or reload the configuration `self` from the specified `path`.
   ##
-  var stream = newFileStream(path)
+  var stream = openFileStream(path)
   self.path = path
   self.load(stream)
 

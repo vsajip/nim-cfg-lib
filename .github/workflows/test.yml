@@ -28,6 +28,7 @@ jobs:
         name: Set up Nim
         with:
           nim-version: ${{ matrix.nim-version }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run tests on POSIX
         if: ${{ matrix.os != 'windows-latest' }}
         run: |

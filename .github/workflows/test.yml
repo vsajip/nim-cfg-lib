@@ -21,6 +21,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         nim-version:
           - '1.6.x'
+          - '2.0.x'
     steps:
       - uses: actions/checkout@v3
       - uses: jiro4989/setup-nim-action@v1
@@ -32,7 +33,7 @@ jobs:
         run: |
           nim --version
           nimble install -Y
-          nimble test -Y
+          nimble test -Y --cursorInference:off
       - name: Run tests on Windows
         if: ${{ matrix.os == 'windows-latest' }}
         run: |
@@ -40,4 +41,4 @@ jobs:
           echo "Set HOME to $HOME"
           nim --version
           nimble install -Y
-          nimble test -Y
+          nimble test -Y --cursorInference:off

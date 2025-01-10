@@ -36,8 +36,9 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Ensure PCRE available
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: |
-          'sudo apt update && sudo apt install -y libpcre3-dev'
+        uses: ConorMacBride/install-package@v1
+        with:
+          apt: 'libpcre3-dev'
       - name: Run tests on POSIX
         if: ${{ matrix.os != 'windows-latest' }}
         run: |

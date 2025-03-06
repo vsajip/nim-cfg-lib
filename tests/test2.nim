@@ -315,7 +315,10 @@ test "config expressions":
 
   # interpolation
 
-  check CV("A-4 a test_foo true 10 1e-07 1e+20 1 b [a, c, e, g]Z") == cfg["interp"]
+  when (NimMajor, NimMinor, NimPatch) >= (2, 2, 2):
+    check CV("A-4 a test_foo true 10 0.0000001 1e+20 1 b [a, c, e, g]Z") == cfg["interp"]
+  else:
+    check CV("A-4 a test_foo true 10 1e-07 1e+20 1 b [a, c, e, g]Z") == cfg["interp"]
   check CV("{a: b}") == cfg["interp2"]
 
   type

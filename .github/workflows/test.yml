@@ -12,8 +12,8 @@ on:
       - 'README.*'
       - '.github/ISSUE-TEMPLATE/**'
 
-  schedule:  # at 03:06 on day-of-month 6
-    - cron: '6 3 6 * *'
+  schedule:  # at 03:06 on day-of-month 7
+    - cron: '6 3 7 * *'
 
 jobs:
   test:

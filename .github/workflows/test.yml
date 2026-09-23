@@ -35,7 +35,7 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://nim-lang.org" -OutFile "dlls.zip"
+          Invoke-WebRequest -Uri "https://nim-lang.org/download/dlls.zip" -OutFile "dlls.zip"
           Expand-Archive -Path "dlls.zip" -DestinationPath "."
           # Move them to the root or add current directory to GITHUB_PATH
           echo "${{ github.workspace }}" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8

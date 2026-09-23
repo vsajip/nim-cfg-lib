@@ -31,6 +31,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Install Nim OpenSSL DLLs (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://nim-lang.org" -OutFile "dlls.zip"
+          Expand-Archive -Path "dlls.zip" -DestinationPath "."
+          # Move them to the root or add current directory to GITHUB_PATH
+          echo "${{ github.workspace }}" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
       - uses: jiro4989/setup-nim-action@v1
         name: Set up Nim
         with:
@@ -40,14 +48,6 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
           sudo apt update && sudo apt install libpcre3-dev
-      - name: Install Nim OpenSSL DLLs (Windows)
-        if: ${{ matrix.os == 'windows-latest' }}
-        shell: powershell
-        run: |
-          Invoke-WebRequest -Uri "https://nim-lang.org" -OutFile "dlls.zip"
-          Expand-Archive -Path "dlls.zip" -DestinationPath "."
-          # Move them to the root or add current directory to GITHUB_PATH
-          echo "${{ github.workspace }}" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
       - name: Run tests on POSIX
         if: ${{ matrix.os != 'windows-latest' }}
         run: |

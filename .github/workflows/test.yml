@@ -15,7 +15,7 @@ on:
   schedule:  # at 03:06 on day-of-month 7
     - cron: '6 3 7 * *'
 
-  workflow-dispatch:
+  workflow_dispatch:
 
 jobs:
   test:
